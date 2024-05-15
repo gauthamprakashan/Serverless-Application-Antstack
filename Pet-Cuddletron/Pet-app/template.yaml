@@ -1,0 +1,123 @@
+
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+
+Resources:
+  PetCuddleFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: Pet_integ/
+      Handler: app.lambda_handler
+      Runtime: python3.10
+      Architectures:
+      - x86_64
+  PetCuddleAPIgATEWAY:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      
+  PetCuddleAPI:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: Pet_integ/
+      Handler: api.lambda_api
+      Runtime: python3.10
+      Architectures:
+      - x86_64
+      Events:
+        PetCuddle:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /
+            Method: post
+            RestApiId: !Ref PetCuddleAPIgATEWAY
+      
+  MyEmailIdentity1:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: itsgauthamp@gmail.com
+  
+  MyEmailIdentity2:
+    Type: AWS::SES::EmailIdentity
+    Properties:
+      EmailIdentity: gautham.prakashan@antstack.io
+  
+  MyStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      DefinitionString: 
+        !Sub |
+          {
+            "Comment": "Pet Cuddle-o-Tron - using Lambda for email.",
+            "StartAt": "Timer",
+            "States": {
+              "Timer": {
+                "Type": "Wait",
+                "SecondsPath": "$.waitSeconds",
+                "Next": "Email"
+              },
+              "Email": {
+                "Type" : "Task",
+                "Resource": "arn:aws:states:::lambda:invoke",
+                "Parameters": {
+                  "FunctionName": "arn:aws:lambda:us-east-1:960351580303:function:Pet-app-PetCuddleFunction-Zprd4qzyoK4M",
+                  "Payload": {
+                    "Input.$": "$"
+                  }
+                },
+                "Next": "NextState"
+              },
+              "NextState": {
+                "Type": "Pass",
+                "End": true
+              }
+            }
+          }
+      RoleArn: 
+        Fn::GetAtt:
+          - StateMachineExecutionRole
+          - Arn
+
+
+  StateMachineExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: StepFunctionsExecutionPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - lambda:InvokeFunction
+                  - ses:SendEmail
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
